@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -5,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import models  # noqa: F401  (register models)
 from .database import Base, engine
+from .events import set_main_loop
 from .routers import rfqs
 from .scheduler import start as start_scheduler
 
@@ -13,6 +15,7 @@ from .scheduler import start as start_scheduler
 async def lifespan(app: FastAPI):
     # Dev-only: create tables on boot. Use Alembic in production.
     Base.metadata.create_all(bind=engine)
+    set_main_loop(asyncio.get_running_loop())
     start_scheduler()
     yield
 

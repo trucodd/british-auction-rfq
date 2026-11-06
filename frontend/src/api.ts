@@ -1,5 +1,8 @@
 const BASE = import.meta.env.VITE_API_BASE ?? "";
 
+/** Full URL for an SSE endpoint (EventSource doesn't go through a helper). */
+export const sseUrl = (path: string) => `${BASE}${path}`;
+
 export async function apiGet<T>(path: string): Promise<T> {
   const r = await fetch(`${BASE}${path}`);
   if (!r.ok) throw new Error(`GET ${path} → ${r.status}`);

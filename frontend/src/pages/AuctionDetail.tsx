@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { apiGet, apiPost } from "../api";
+import { apiGet, apiPost, sseUrl } from "../api";
 import { usePolling } from "../hooks/usePolling";
+import { useSSE } from "../hooks/useSSE";
 import { fmtUtc } from "../time";
 import type { Bid, RFQDetail } from "../types";
 
@@ -69,10 +70,13 @@ export default function AuctionDetail() {
   const { id } = useParams();
   const rfqId = Number(id);
 
-  const { data, error } = usePolling<RFQDetail>(
+  // SSE pushes "state changed" on every bid/extension/close → instant refetch.
+  // Polling drops to a 15s safety net for when the stream is disconnected.
+  const { data, error, refresh } = usePolling<RFQDetail>(
     () => apiGet(`/api/rfqs/${rfqId}`),
-    3000
+    15000
   );
+  const connected = useSSE(sseUrl(`/api/rfqs/${rfqId}/stream`), refresh);
 
   if (error) return <div className="text-red-600">{error}</div>;
   if (!data) return <div>Loading…</div>;
@@ -82,7 +86,13 @@ export default function AuctionDetail() {
       <div className="bg-white rounded shadow p-5">
         <div className="flex items-baseline justify-between">
           <h1 className="text-xl font-semibold">{data.name}</h1>
-          <span className="text-xs uppercase px-2 py-1 rounded bg-slate-200">{data.status}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500"
+                  title={connected ? "Streaming live updates" : "Stream down — refreshing every 15s"}>
+              {connected ? "● live" : "◌ reconnecting"}
+            </span>
+            <span className="text-xs uppercase px-2 py-1 rounded bg-slate-200">{data.status}</span>
+          </div>
         </div>
         <div className="text-sm text-slate-600 mt-1">
           Ref {data.reference_id} · pickup {fmtUtc(data.pickup_date)}

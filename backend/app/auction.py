@@ -3,7 +3,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from . import models, schemas
+from . import events, models, schemas
 
 
 # ---------- helpers ----------
@@ -123,4 +123,5 @@ def submit_bid(db: Session, rfq: models.RFQ, payload: schemas.BidCreate) -> mode
 
     db.commit()
     db.refresh(bid)
+    events.publish({"type": "bid", "rfq_id": rfq.id})
     return bid

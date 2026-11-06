@@ -1,31 +1,48 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+/** Polls on an interval as the *fallback* data source; callers that also
+ *  listen to SSE can call `refresh()` on every pushed event to get updates
+ *  instantly (and push the next fallback poll back, so nothing double-fires). */
 export function usePolling<T>(fetcher: () => Promise<T>, intervalMs = 3000) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
+  const liveRef = useRef(true);
+  const timerRef = useRef<number | undefined>(undefined);
+
+  const run = useCallback(async () => {
+    try {
+      const d = await fetcherRef.current();
+      if (liveRef.current) { setData(d); setError(null); }
+    } catch (e) {
+      if (liveRef.current) setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  const schedule = useCallback(() => {
+    if (!liveRef.current) return;
+    clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(async () => {
+      await run();
+      schedule();
+    }, intervalMs);
+  }, [intervalMs, run]);
 
   useEffect(() => {
-    let cancelled = false;
-    let timer: number | undefined;
-
-    const tick = async () => {
-      try {
-        const d = await fetcherRef.current();
-        if (!cancelled) { setData(d); setError(null); }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      }
-      if (!cancelled) timer = window.setTimeout(tick, intervalMs);
-    };
-
-    tick();
+    liveRef.current = true;
+    run().finally(schedule);
     return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
+      liveRef.current = false;
+      clearTimeout(timerRef.current);
     };
-  }, [intervalMs]);
+  }, [run, schedule]);
 
-  return { data, error };
+  const refresh = useCallback(async () => {
+    if (!liveRef.current) return;
+    await run();
+    schedule(); // reschedule: the push replaced this cycle's fetch
+  }, [run, schedule]);
+
+  return { data, error, refresh };
 }

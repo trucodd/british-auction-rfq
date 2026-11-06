@@ -1,10 +1,51 @@
+import asyncio
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from .. import auction, models, schemas
+from .. import auction, events, models, schemas
 from ..database import get_db
 
 router = APIRouter(prefix="/api/rfqs", tags=["rfqs"])
+
+_SSE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "X-Accel-Buffering": "no",  # don't let reverse proxies buffer the stream
+}
+
+
+def _sse_stream(topic: str) -> StreamingResponse:
+    """Server-Sent Events stream of "state changed" hints for a topic."""
+
+    async def gen():
+        q = events.subscribe(topic)
+        try:
+            yield ": connected\n\n"
+            while True:
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=20)
+                    yield f"data: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"  # keeps proxies and the client happy
+        finally:
+            events.unsubscribe(topic, q)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers=_SSE_HEADERS)
+
+
+@router.get("/stream")
+async def stream_rfqs():
+    """Global stream — one event whenever any RFQ changes (list page)."""
+    return _sse_stream("rfqs")
+
+
+@router.get("/{rfq_id}/stream")
+async def stream_rfq(rfq_id: int):
+    """Per-RFQ stream — one event whenever that auction changes (detail page)."""
+    return _sse_stream(f"rfq:{rfq_id}")
 
 
 def _to_out(rfq: models.RFQ) -> schemas.RFQOut:
@@ -42,6 +83,7 @@ def create_rfq(payload: schemas.RFQCreate, db: Session = Depends(get_db)):
     db.add(rfq)
     db.commit()
     db.refresh(rfq)
+    events.publish({"type": "rfq_created", "rfq_id": rfq.id})
     return _to_out(rfq)
 
 

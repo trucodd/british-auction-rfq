@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
-import { apiGet } from "../api";
+import { apiGet, sseUrl } from "../api";
 import { usePolling } from "../hooks/usePolling";
+import { useSSE } from "../hooks/useSSE";
 import { fmtUtc } from "../time";
 import type { RFQSummary } from "../types";
 
@@ -14,17 +15,24 @@ const statusBadge = (s: string) => {
 };
 
 export default function AuctionList() {
-  const { data, error } = usePolling<RFQSummary[]>(
+  // Global SSE stream: any bid/extension/close/creation anywhere → refetch.
+  // 15s polling remains only as a fallback while the stream is disconnected.
+  const { data, error, refresh } = usePolling<RFQSummary[]>(
     () => apiGet("/api/rfqs"),
-    3000
+    15000
   );
+  const connected = useSSE(sseUrl("/api/rfqs/stream"), refresh);
 
   if (error) return <div className="text-red-600">Error: {error}</div>;
   if (!data) return <div>Loading…</div>;
   if (data.length === 0) return <div>No RFQs yet. Click “+ New RFQ”.</div>;
 
   return (
-    <div className="bg-white rounded shadow overflow-hidden">
+    <div className="space-y-2">
+      <div className="text-xs text-slate-500">
+        {connected ? "● live — updates streamed from the server" : "◌ reconnecting — refreshing every 15s"}
+      </div>
+      <div className="bg-white rounded shadow overflow-hidden">
       <table className="w-full text-sm">
         <thead className="bg-slate-100 text-left">
           <tr>
@@ -53,6 +61,7 @@ export default function AuctionList() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
