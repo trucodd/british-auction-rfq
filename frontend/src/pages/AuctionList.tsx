@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { apiGet, sseUrl } from "../api";
 import { usePolling } from "../hooks/usePolling";
 import { useSSE } from "../hooks/useSSE";
+import { syncFromServer } from "../serverClock";
 import { fmtUtc } from "../time";
 import type { RFQSummary } from "../types";
 
@@ -15,13 +16,27 @@ const statusBadge = (s: string) => {
 };
 
 export default function AuctionList() {
-  // Global SSE stream: any bid/extension/close/creation anywhere → refetch.
-  // 15s polling remains only as a fallback while the stream is disconnected.
-  const { data, error, refresh } = usePolling<RFQSummary[]>(
+  // Global SSE stream: events carry the updated row itself (lowest bid,
+  // current close, status), applied directly — no per-event REST refetch from
+  // every open browser tab. 15s polling remains only as a fallback while the
+  // stream is disconnected (and for hint-only/unparseable events).
+  const { data, error, refresh, setData } = usePolling<RFQSummary[]>(
     () => apiGet("/api/rfqs"),
     15000
   );
-  const connected = useSSE(sseUrl("/api/rfqs/stream"), refresh);
+  const connected = useSSE(sseUrl("/api/rfqs/stream"), (ev) => {
+    syncFromServer(ev.ts); // keep countdowns aligned with the server clock
+    const s = ev.summary;
+    if (s) {
+      setData((prev) => prev
+        ? prev.some((r) => r.id === s.id)
+          ? prev.map((r) => (r.id === s.id ? s : r))
+          : [s, ...prev] // rfq_created
+        : prev);
+    } else {
+      refresh();
+    }
+  });
 
   if (error) return <div className="text-red-600">Error: {error}</div>;
   if (!data) return <div>Loading…</div>;

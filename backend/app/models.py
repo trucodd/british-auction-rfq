@@ -2,7 +2,8 @@ import enum
 from datetime import datetime
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Enum, Float, ForeignKey, Integer, JSON, String,
+    Boolean, Column, DateTime, Enum, Float, ForeignKey, Index, Integer, JSON,
+    String,
 )
 from sqlalchemy.orm import relationship
 
@@ -77,6 +78,12 @@ class Bid(Base):
 
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
+
+    # The detail page loads logs per RFQ ordered by recency — cover that exact
+    # access pattern with one composite index instead of rfq_id alone.
+    __table_args__ = (
+        Index("ix_activity_logs_rfq_created", "rfq_id", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True)
     rfq_id = Column(Integer, ForeignKey("rfqs.id"), nullable=False, index=True)

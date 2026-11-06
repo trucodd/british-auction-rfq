@@ -1,10 +1,33 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiGet, apiPost, sseUrl } from "../api";
 import { usePolling } from "../hooks/usePolling";
 import { useSSE } from "../hooks/useSSE";
-import { fmtUtc } from "../time";
+import { serverNow, syncFromServer } from "../serverClock";
+import { fmtUtc, parseUtc } from "../time";
 import type { Bid, RFQDetail } from "../types";
+
+function Countdown({ closeIso }: { closeIso: string }) {
+  // Rerenders every second. The comparison runs against the server-synced
+  // clock, never the browser's — a skewed local clock must not show "2s
+  // left" for an auction the server already closed.
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => tick((n) => n + 1), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const ms = parseUtc(closeIso).getTime() - serverNow().getTime();
+  if (ms <= 0) return <div className="font-semibold text-red-600">time is up</div>;
+  const totalSec = Math.floor(ms / 1000);
+  const mm = Math.floor(totalSec / 60);
+  const ss = String(totalSec % 60).padStart(2, "0");
+  return (
+    <div className={`font-mono font-semibold ${mm < 1 ? "text-red-600" : "text-blue-700"}`}>
+      {mm}:{ss}
+    </div>
+  );
+}
 
 function BidForm({ rfqId, disabled }: { rfqId: number; disabled: boolean }) {
   const [form, setForm] = useState({
@@ -70,13 +93,19 @@ export default function AuctionDetail() {
   const { id } = useParams();
   const rfqId = Number(id);
 
-  // SSE pushes "state changed" on every bid/extension/close → instant refetch.
-  // Polling drops to a 15s safety net for when the stream is disconnected.
-  const { data, error, refresh } = usePolling<RFQDetail>(
+  // SSE pushes the updated state itself (bid+rankings, extended close, status
+  // flips) and those payloads are applied directly — no per-event REST
+  // refetch. The 15s poll stays only as a fallback while the stream is down,
+  // and hint-only/unparseable events resync through `refresh()`.
+  const { data, error, refresh, setData } = usePolling<RFQDetail>(
     () => apiGet(`/api/rfqs/${rfqId}`),
     15000
   );
-  const connected = useSSE(sseUrl(`/api/rfqs/${rfqId}/stream`), refresh);
+  const connected = useSSE(sseUrl(`/api/rfqs/${rfqId}/stream`), (ev) => {
+    syncFromServer(ev.ts); // keep the countdown aligned with the server clock
+    if (ev.detail) setData(ev.detail);
+    else refresh();
+  });
 
   if (error) return <div className="text-red-600">{error}</div>;
   if (!data) return <div>Loading…</div>;
@@ -104,7 +133,8 @@ export default function AuctionDetail() {
           </div>
           <div>
             <div className="text-slate-500">Current close</div>
-            <div className="font-semibold text-blue-700">{fmtUtc(data.current_close)}</div>
+            <Countdown closeIso={data.current_close} />
+            <div>{fmtUtc(data.current_close)}</div>
           </div>
           <div>
             <div className="text-slate-500">Forced close</div>

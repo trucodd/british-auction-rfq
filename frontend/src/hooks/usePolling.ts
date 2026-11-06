@@ -44,5 +44,5 @@ export function usePolling<T>(fetcher: () => Promise<T>, intervalMs = 3000) {
     schedule(); // reschedule: the push replaced this cycle's fetch
   }, [run, schedule]);
 
-  return { data, error, refresh };
+  return { data, error, refresh, setData };
 }

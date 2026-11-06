@@ -49,3 +49,16 @@ export interface RFQDetail extends RFQSummary {
   bids: Bid[];
   logs: ActivityLog[];
 }
+
+/** An event pushed on the SSE stream. `ts` is the server's epoch ms for clock
+ *  sync. Events carry the updated state directly — `summary` for the list
+ *  page, `detail` (+ the accepted bid) for the auction page — so clients apply
+ *  the payload instead of refetching via REST. */
+export interface SSEEvent {
+  type: "bid" | "rfq_created" | "closed" | "force_closed" | string;
+  rfq_id?: number;
+  ts?: number;
+  bid?: (Bid & { rank?: number | null }) | null;
+  summary?: RFQSummary;
+  detail?: RFQDetail;
+}
