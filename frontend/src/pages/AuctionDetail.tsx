@@ -123,6 +123,7 @@ export default function AuctionDetail() {
                   <th className="p-2">Total</th>
                   <th className="p-2">Freight / Origin / Dest</th>
                   <th className="p-2">Transit</th>
+                  <th className="p-2">Valid until</th>
                   <th className="p-2">Submitted</th>
                 </tr>
               </thead>
@@ -136,11 +137,12 @@ export default function AuctionDetail() {
                       {b.freight_charge} / {b.origin_charge} / {b.destination_charge}
                     </td>
                     <td className="p-2">{b.transit_days}d</td>
+                    <td className="p-2 text-slate-600">{fmtUtc(b.quote_valid_until)}</td>
                     <td className="p-2 text-slate-500">{fmtUtc(b.created_at)}</td>
                   </tr>
                 ))}
                 {data.bids.length === 0 && (
-                  <tr><td className="p-4 text-slate-500" colSpan={6}>No bids yet.</td></tr>
+                  <tr><td className="p-4 text-slate-500" colSpan={7}>No bids yet.</td></tr>
                 )}
               </tbody>
             </table>
