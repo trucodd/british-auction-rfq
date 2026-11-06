@@ -10,7 +10,7 @@ erDiagram
 
     RFQ {
         int     id PK
-        string  reference_id UC "unique, indexed"
+        string  reference_id UK "unique, indexed"
         string  name
         datetime pickup_date
         datetime bid_start "auction opens"
@@ -46,7 +46,7 @@ erDiagram
 
     ACTIVITY_LOG {
         int     id PK
-        int     rfq_id FK "indexed"
+        int     rfq_id FK "indexed, composite (rfq_id, created_at)"
         string  event_type "BID | EXTENSION | CLOSE | FORCE_CLOSE"
         string  reason
         datetime old_close "extensions"
