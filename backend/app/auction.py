@@ -43,6 +43,8 @@ def submit_bid(db: Session, rfq: models.RFQ, payload: schemas.BidCreate) -> mode
 
     if rfq.status != models.RFQStatus.ACTIVE:
         raise ValueError("auction is not active")
+    if now < rfq.bid_start:
+        raise ValueError("bidding has not started yet")
     if now >= rfq.forced_close:
         raise ValueError("forced close time reached")
     if now >= rfq.current_close:
