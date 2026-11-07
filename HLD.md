@@ -5,7 +5,7 @@
 A simplified RFQ (Request for Quotation) system with British Auction–style bid
 competition. Suppliers submit open bids and compete by undercutting each other.
 To prevent last-second sniping, bids placed inside a configurable end-window
-automatically extend the auction close — never beyond a hard *forced close*.
+automatically extend the auction close - never beyond a hard *forced close*.
 
 ## 2. Architecture Diagram
 
@@ -92,7 +92,7 @@ sequenceDiagram
 
 ## 5. Real-Time Model (SSE)
 
-Bidding must feel live — a supplier who is being undercut needs to know in well
+Bidding must feel live - a supplier who is being undercut needs to know in well
 under a second to react while the trigger window is still open. The system
 therefore pushes auction updates instead of relying on client-side polling:
 
@@ -168,7 +168,7 @@ all reasons joined. Extension is always `min(current_close + Y, forced_close)`.
 
 ## 9. Concurrency & Clock Rules
 
-| Review concern | How it's handled |
+| Concern / Requirement | Mechanism |
 |---|---|
 | Race on `current_close` in the final seconds | `submit_bid` runs inside a transaction holding `SELECT ... FOR UPDATE` on the RFQ row — extensions are evaluated and applied by exactly one transaction at a time; the next concurrent bid sees the extended deadline. |
 | Serialization failures / deadlocks under load | `submit_bid` retries the whole transaction (up to 4 attempts, brief backoff) on pgcodes `40001`/`40P01`; the route maps an exhausted budget to `503` with `Retry-After`. |

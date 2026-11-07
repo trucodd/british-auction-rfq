@@ -59,11 +59,11 @@ erDiagram
 ## Design Decisions
 
 1. **Three close timestamps, not one.**
-   - `original_close` — never mutated; preserved for the audit trail and the
+   - `original_close` - never mutated; preserved for the audit trail and the
      original→current extension delta.
-   - `current_close` — the only field the auction engine mutates; only moves
+   - `current_close` - the only field the auction engine mutates; only moves
      forward, never past `forced_close`.
-   - `forced_close` — hard ceiling; also drives force-close status.
+   - `forced_close` - hard ceiling; also drives force-close status.
 
 2. **`total_price` is stored, not derived.** The ranking field
    (`ORDER BY total_price, created_at ASC`) is materialised at insert time
